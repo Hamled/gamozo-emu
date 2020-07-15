@@ -1,3 +1,5 @@
+pub mod primitive;
+use primitive::Primitive;
 const PERM_READ: u8 = 1 << 0;
 const PERM_WRITE: u8 = 2 << 0;
 const PERM_EXEC: u8 = 3 << 0;
@@ -183,6 +185,23 @@ impl Mmu {
 
     pub fn read_into(&self, addr: VirtAddr, buf: &mut [u8]) -> Option<()> {
         self.read_into_perms(addr, buf, Perm(PERM_READ))
+    }
+
+    pub fn read_perms<T: Primitive>(&self, addr: VirtAddr, exp_perms: Perm) -> Option<T> {
+        let mut tmp = [0u8; 16];
+        self.read_into_perms(addr, &mut tmp[..core::mem::size_of::<T>()], exp_perms)?;
+        Some(unsafe { core::ptr::read_unaligned(tmp.as_ptr() as *const T) })
+    }
+
+    pub fn read<T: Primitive>(&self, addr: VirtAddr) -> Option<T> {
+        self.read_perms(addr, Perm(PERM_READ))
+    }
+
+    pub fn write<T: Primitive>(&mut self, addr: VirtAddr, val: T) -> Option<()> {
+        let tmp = unsafe {
+            core::slice::from_raw_parts(&val as *const T as *const u8, core::mem::size_of::<T>())
+        };
+        self.write_from(addr, tmp)
     }
 }
 
