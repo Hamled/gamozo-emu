@@ -203,4 +203,42 @@ impl Mmu {
         };
         self.write_from(addr, tmp)
     }
+
+    pub fn load_section(&mut self, file_contents: &[u8], section: &Section) -> Option<()> {
+        self.set_permissions(section.virt_addr, section.mem_size, Perm(PERM_WRITE))?;
+
+        self.write_from(
+            section.virt_addr,
+            file_contents
+                .get(section.file_off..section.file_off.checked_add(section.file_size)?)?,
+        )?;
+
+        // Write in any padding with zeros
+        if section.mem_size > section.file_size {
+            let padding = vec![0u8; section.mem_size - section.file_size];
+            self.write_from(
+                VirtAddr(section.virt_addr.0.checked_add(section.file_size)?),
+                &padding,
+            )?;
+        }
+
+        // Demote permissions to originals
+        self.set_permissions(section.virt_addr, section.mem_size, section.permissions)?;
+
+        // Update the allocator beyond any sections we load
+        self.cur_alc = VirtAddr(std::cmp::max(
+            self.cur_alc.0,
+            section.virt_addr.0 + section.mem_size,
+        ));
+
+        Some(())
+    }
+}
+
+pub struct Section {
+    pub file_off: usize,
+    pub virt_addr: VirtAddr,
+    pub file_size: usize,
+    pub mem_size: usize,
+    pub permissions: Perm,
 }

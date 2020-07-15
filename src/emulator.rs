@@ -1,4 +1,5 @@
-use crate::mmu::Mmu;
+use crate::mmu::{Mmu, Section};
+use std::path::Path;
 
 /// All the state of the emulated system
 pub struct Emulator {
@@ -46,6 +47,19 @@ impl Emulator {
         if register != Register::Zero {
             self.registers[register as usize] = val;
         }
+    }
+
+    /// Load a file into the emulators addres space using the sections as described
+    pub fn load<P: AsRef<Path>>(&mut self, filename: P, sections: &[Section]) -> Option<()> {
+        // Read the input file
+        let contents = std::fs::read(filename).ok()?;
+
+        // Go through each section and load it
+        for section in sections {
+            self.memory.load_section(&contents, section);
+        }
+
+        Some(())
     }
 }
 
