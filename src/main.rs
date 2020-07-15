@@ -164,18 +164,25 @@ impl Mmu {
         Some(())
     }
 
-    pub fn read_into(&self, addr: VirtAddr, buf: &mut [u8]) -> Option<()> {
+    /// Read the memory at `addr` into `buf` assuming all `exp_perms` bits are set
+    /// This functions checks to see if all bits in `exp_perms` are set in the permission bytes.
+    /// If this is zero, we ignore permissions entirely.
+    pub fn read_into_perms(&self, addr: VirtAddr, buf: &mut [u8], exp_perms: Perm) -> Option<()> {
         let perms = self
             .permissions
             .get(addr.0..addr.0.checked_add(buf.len())?)?;
 
-        if !perms.iter().all(|x| (x.0 & PERM_WRITE) != 0) {
+        if exp_perms.0 != 0 && !perms.iter().all(|x| (x.0 & exp_perms.0) == exp_perms.0) {
             return None;
         }
 
         buf.copy_from_slice(self.memory.get(addr.0..addr.0.checked_add(buf.len())?)?);
 
         Some(())
+    }
+
+    pub fn read_into(&self, addr: VirtAddr, buf: &mut [u8]) -> Option<()> {
+        self.read_into_perms(addr, buf, Perm(PERM_READ))
     }
 }
 
