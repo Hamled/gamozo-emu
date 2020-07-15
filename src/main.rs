@@ -37,5 +37,38 @@ fn main() {
 
     emu.set_reg(Register::Pc, 0x11190);
 
+    // Setup a stack
+    let stack = emu
+        .memory
+        .allocate(32 * 1024)
+        .expect("Failed to allocate stack");
+    emu.set_reg(Register::Sp, stack.0 as u64 + 32 * 1024);
+
+    // Setup arguments
+    let progname = b"test_app\0";
+    let argv0 = emu
+        .memory
+        .allocate(progname.len())
+        .expect("Failed to allocate program name");
+    emu.memory
+        .write_from(argv0, progname)
+        .expect("Failed to write program name");
+
+    macro_rules! push {
+        ($expr:expr) => {
+            let sp = emu.reg(Register::Sp) - 8;
+            emu.memory
+                .write(VirtAddr(sp as usize), $expr)
+                .expect("Push failed");
+            emu.set_reg(Register::Sp, sp);
+        };
     }
+
+    push!(0u64); // Auxp
+    push!(0u64); // Envp
+    push!(0u64); // Argv null
+    push!(argv0.0); // Argv 0
+    push!(1u64); // Argc
+
+    emu.run().expect("Failed to execute emulator");
 }
