@@ -13,15 +13,15 @@ const DIRTY_BLOCK_SIZE: usize = 4096;
 /// permissions it has
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct Perm(u8);
+pub struct Perm(u8);
 
 /// A guest virtual address
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct VirtAddr(usize);
+pub struct VirtAddr(usize);
 
 /// An isolated memory space
-struct Mmu {
+pub struct Mmu {
     /// Block of memory for this address space
     /// Offset 0 corresponds to address 0 in the guest address space
     memory: Vec<u8>,
@@ -180,7 +180,7 @@ impl Mmu {
 }
 
 /// All the state of the emulated system
-struct Emulator {
+pub struct Emulator {
     /// Memory for the emulator
     pub memory: Mmu,
 }
