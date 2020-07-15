@@ -150,7 +150,7 @@ impl Mmu {
             if self.dirty_bitmap[idx] & (1 << bit) == 0 {
                 // Block is not dirty, add it to the dirty list
                 self.dirty.push(block);
-                self.dirty_bitmap[idx] |= (1 << bit);
+                self.dirty_bitmap[idx] |= 1 << bit;
             }
         }
 
