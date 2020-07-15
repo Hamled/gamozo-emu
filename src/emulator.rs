@@ -4,6 +4,7 @@ use crate::mmu::Mmu;
 pub struct Emulator {
     /// Memory for the emulator
     pub memory: Mmu,
+    pub registers: [u64; 33],
 }
 
 impl Emulator {
@@ -11,6 +12,7 @@ impl Emulator {
     pub fn new(size: usize) -> Self {
         Emulator {
             memory: Mmu::new(size),
+            registers: [0; 33],
         }
     }
 
@@ -18,6 +20,77 @@ impl Emulator {
     pub fn fork(&self) -> Self {
         Emulator {
             memory: self.memory.fork(),
+            registers: self.registers.clone(),
         }
+    }
+
+    /// Reset the state of `self` to `other`, assuming that `self` is
+    /// forked off of `other`. If it is not, the results are invalid.
+    pub fn reset(&mut self, other: &Self) {
+        // Reset memory state
+        self.memory.reset(&other.memory);
+
+        // Reset register state
+        self.registers = other.registers;
+    }
+
+    pub fn reg(&self, register: Register) -> u64 {
+        if register != Register::Zero {
+            self.registers[register as usize]
+        } else {
+            0
+        }
+    }
+
+    pub fn set_reg(&mut self, register: Register, val: u64) {
+        if register != Register::Zero {
+            self.registers[register as usize] = val;
+        }
+    }
+}
+
+/// RISC-V 64-bit registers
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[repr(usize)]
+pub enum Register {
+    Zero = 0,
+    Ra,
+    Sp,
+    Gp,
+    Tp,
+    T0,
+    T1,
+    T2,
+    S0,
+    S1,
+    A0,
+    A1,
+    A2,
+    A3,
+    A4,
+    A5,
+    A6,
+    A7,
+    S2,
+    S3,
+    S4,
+    S5,
+    S6,
+    S7,
+    S8,
+    S9,
+    S10,
+    S11,
+    T3,
+    T4,
+    T5,
+    T6,
+    Pc,
+}
+
+impl From<u32> for Register {
+    fn from(val: u32) -> Self {
+        assert!(val < 32);
+        unsafe { core::ptr::read_unaligned(&(val as usize) as *const usize as *const Register) }
     }
 }
