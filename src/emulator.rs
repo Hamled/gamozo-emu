@@ -93,6 +93,11 @@ impl Emulator {
         let num = self.reg(Register::A7);
 
         match num {
+            29 => {
+                // ioctl()
+                self.set_reg(Register::A0, !0);
+                Ok(())
+            }
             96 => {
                 // set_tid_address(), just return the TID
                 self.set_reg(Register::A0, 1337);
