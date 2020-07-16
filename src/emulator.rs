@@ -77,9 +77,22 @@ impl Emulator {
                     // Update PC to the next instruction
                     self.set_reg(Register::Pc, new_pc);
                 }
-                Err(reason) => return Err(reason),
+                Err(EmuStop::Syscall) => {
+                    if let Err(reason) = self.handle_syscall() {
+                        return Err(reason);
+                    }
+
+                    self.set_reg(Register::Pc, pc.wrapping_add(4));
+                }
             }
         }
+    }
+
+    fn handle_syscall(&mut self) -> Result<(), EmuStop> {
+        // Get the syscall number
+        let num = self.reg(Register::A7);
+
+        panic!("Unhandled syscall {}\n", num)
     }
 
     fn exec_inst(&mut self, pc: u64, inst: u32) -> Result<u64, EmuStop> {
