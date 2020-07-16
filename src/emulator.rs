@@ -92,7 +92,14 @@ impl Emulator {
         // Get the syscall number
         let num = self.reg(Register::A7);
 
-        panic!("Unhandled syscall {}\n", num)
+        match num {
+            96 => {
+                // set_tid_address(), just return the TID
+                self.set_reg(Register::A0, 1337);
+                Ok(())
+            }
+            _ => panic!("Unhandled syscall {}\n", num),
+        }
     }
 
     fn exec_inst(&mut self, pc: u64, inst: u32) -> Result<u64, EmuStop> {
