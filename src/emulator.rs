@@ -76,13 +76,12 @@ impl Emulator {
                     // Update PC to the next instruction
                     self.set_reg(Register::Pc, new_pc);
                 }
-                Err(EmuStop::Syscall) => {
-                    if let Err(reason) = self.handle_syscall() {
-                        return Err(reason);
-                    }
-
-                    self.set_reg(Register::Pc, pc.wrapping_add(4));
-                }
+                Err(EmuStop::Syscall) => match self.handle_syscall() {
+                    Ok(_) => self.set_reg(Register::Pc, pc.wrapping_add(4)),
+                    Err(EmuStop::Exit) => return Ok(()),
+                    Err(reason) => return Err(reason),
+                },
+                Err(EmuStop::Exit) => return Ok(()),
                 Err(reason) => return Err(reason),
             }
         }
@@ -143,6 +142,7 @@ impl Emulator {
                 self.set_reg(Register::A0, bytes_written);
                 Ok(())
             }
+            94 => Err(EmuStop::Exit),
             96 => {
                 // set_tid_address(), just return the TID
                 self.set_reg(Register::A0, 1337);
@@ -733,6 +733,9 @@ impl From<u32> for Register {
 /// Reasons for emulation stopping
 #[derive(Debug)]
 pub enum EmuStop {
+    /// Emulation stopped through normal exit
+    Exit,
+
     /// Emulation stopped because a syscall was made
     Syscall,
 
