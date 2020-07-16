@@ -62,13 +62,14 @@ impl Emulator {
         Some(())
     }
 
-    pub fn run(&mut self) -> Option<()> {
+    pub fn run(&mut self) -> Result<(), EmuStop> {
         'next_inst: loop {
             // Get the current program counter
             let pc = self.reg(Register::Pc);
             let inst: u32 = self
                 .memory
-                .read_perms(VirtAddr(pc as usize), Perm(PERM_EXEC))?;
+                .read_perms(VirtAddr(pc as usize), Perm(PERM_EXEC))
+                .expect("Could not read next instruction");
 
             // Extract the opcode from the instruction
             let opcode = inst & 0b1111111;
@@ -170,49 +171,49 @@ impl Emulator {
                         0b000 => {
                             // LB
                             let mut tmp = [0u8; 1];
-                            self.memory.read_into(addr, &mut tmp)?;
+                            self.memory.read_into(addr, &mut tmp);
                             self.set_reg(inst.rd, i8::from_le_bytes(tmp) as i64 as u64);
                         }
                         0b001 => {
                             // LH
                             let mut tmp = [0u8; 2];
-                            self.memory.read_into(addr, &mut tmp)?;
+                            self.memory.read_into(addr, &mut tmp);
                             self.set_reg(inst.rd, i16::from_le_bytes(tmp) as i64 as u64);
                         }
                         0b010 => {
                             // LW
                             let mut tmp = [0u8; 4];
-                            self.memory.read_into(addr, &mut tmp)?;
+                            self.memory.read_into(addr, &mut tmp);
                             self.set_reg(inst.rd, i32::from_le_bytes(tmp) as i64 as u64);
                         }
                         0b011 => {
                             // LD
                             let mut tmp = [0u8; 8];
-                            self.memory.read_into(addr, &mut tmp)?;
+                            self.memory.read_into(addr, &mut tmp);
                             self.set_reg(inst.rd, i64::from_le_bytes(tmp) as u64);
                         }
                         0b100 => {
                             // LBU
                             let mut tmp = [0u8; 1];
-                            self.memory.read_into(addr, &mut tmp)?;
+                            self.memory.read_into(addr, &mut tmp);
                             self.set_reg(inst.rd, u8::from_le_bytes(tmp) as u64);
                         }
                         0b101 => {
                             // LHU
                             let mut tmp = [0u8; 2];
-                            self.memory.read_into(addr, &mut tmp)?;
+                            self.memory.read_into(addr, &mut tmp);
                             self.set_reg(inst.rd, u16::from_le_bytes(tmp) as u64);
                         }
                         0b110 => {
                             // LWU
                             let mut tmp = [0u8; 4];
-                            self.memory.read_into(addr, &mut tmp)?;
+                            self.memory.read_into(addr, &mut tmp);
                             self.set_reg(inst.rd, u32::from_le_bytes(tmp) as u64);
                         }
                         0b111 => {
                             // LDU
                             let mut tmp = [0u8; 8];
-                            self.memory.read_into(addr, &mut tmp)?;
+                            self.memory.read_into(addr, &mut tmp);
                             self.set_reg(inst.rd, u64::from_le_bytes(tmp) as u64);
                         }
                         _ => unimplemented!("Unexpected 0b0000111"),
@@ -230,22 +231,22 @@ impl Emulator {
                         0b000 => {
                             // SB
                             let val = self.reg(inst.rs2) as u8;
-                            self.memory.write(addr, val)?;
+                            self.memory.write(addr, val);
                         }
                         0b001 => {
                             // SH
                             let val = self.reg(inst.rs2) as u16;
-                            self.memory.write(addr, val)?;
+                            self.memory.write(addr, val);
                         }
                         0b010 => {
                             // SW
                             let val = self.reg(inst.rs2) as u32;
-                            self.memory.write(addr, val)?;
+                            self.memory.write(addr, val);
                         }
                         0b011 => {
                             // SD
                             let val = self.reg(inst.rs2) as u64;
-                            self.memory.write(addr, val)?;
+                            self.memory.write(addr, val);
                         }
                         _ => unimplemented!("Unexpected 0b0100111"),
                     }
@@ -382,6 +383,7 @@ impl Emulator {
                     match inst.funct3 {
                         0b000 => {
                             // FENCE
+                            panic!("FENCE");
                         }
                         _ => unreachable!(),
                     }
@@ -389,7 +391,7 @@ impl Emulator {
                 0b1110011 => match inst {
                     0b000000000000001110011 => {
                         // ECALL
-                        panic!("ECALL");
+                        return Err(EmuStop::Syscall);
                     }
                     0b100000000000001110011 => {
                         // EBREAK
@@ -653,4 +655,10 @@ impl From<u32> for Register {
         assert!(val < 32);
         unsafe { core::ptr::read_unaligned(&(val as usize) as *const usize as *const Register) }
     }
+}
+
+/// Reasons for emulation stopping
+pub enum EmuStop {
+    /// Emulation stopped because a syscall was made
+    Syscall,
 }

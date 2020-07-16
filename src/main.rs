@@ -70,5 +70,7 @@ fn main() {
     push!(argv0.0); // Argv 0
     push!(1u64); // Argc
 
-    emu.run().expect("Failed to execute emulator");
+    if emu.run().is_err() {
+        panic!("Failed to execute emulator");
+    }
 }
