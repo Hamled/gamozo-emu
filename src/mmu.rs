@@ -214,6 +214,35 @@ impl Mmu {
         self.read_into_perms(addr, buf, Perm(PERM_READ))
     }
 
+    pub fn peek_perms(
+        &self,
+        addr: VirtAddr,
+        size: usize,
+        exp_perms: Perm,
+    ) -> Result<&[u8], EmuStop> {
+        let start = addr.0;
+        let end = start.checked_add(size).ok_or(EmuStop::AddressOverflow)?;
+
+        let perms = self
+            .permissions
+            .get(start..end)
+            .ok_or(EmuStop::AddressMiss(VirtAddr(start), size))?;
+
+        if exp_perms.0 != 0 {
+            for (addr, &perm) in perms.iter().enumerate() {
+                if (perm.0 & exp_perms.0) != exp_perms.0 {
+                    return Err(EmuStop::ReadFault(VirtAddr(addr)));
+                }
+            }
+        }
+
+        Ok(&self.memory[start..end])
+    }
+
+    pub fn peek(&self, addr: VirtAddr, size: usize) -> Result<&[u8], EmuStop> {
+        self.peek_perms(addr, size, Perm(PERM_READ))
+    }
+
     pub fn read_perms<T: Primitive>(&self, addr: VirtAddr, exp_perms: Perm) -> Result<T, EmuStop> {
         let mut tmp = [0u8; 16];
         self.read_into_perms(addr, &mut tmp[..core::mem::size_of::<T>()], exp_perms)?;
