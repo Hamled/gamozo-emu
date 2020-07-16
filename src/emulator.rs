@@ -98,6 +98,51 @@ impl Emulator {
                 self.set_reg(Register::A0, !0);
                 Ok(())
             }
+            66 => {
+                // writev()
+                let fd = self.reg(Register::A0);
+                let iov = self.reg(Register::A1);
+                let iovcnt = self.reg(Register::A2);
+
+                // We currently only handle stdout and stderr
+                if fd != 1 && fd != 2 {
+                    // Return error
+                    self.set_reg(Register::A0, !0);
+                    return Ok(());
+                }
+
+                let mut bytes_written = 0;
+
+                for idx in 0..iovcnt {
+                    // Compute the pointer to the IO vector entry
+                    // corresponding to this index and validate that it
+                    // will not overflow pointer size for the size of
+                    // the `_iovec`
+                    let ptr = 16u64
+                        .checked_mul(idx)
+                        .and_then(|x| x.checked_add(iov))
+                        .and_then(|x| x.checked_add(15))
+                        .ok_or(EmuStop::SyscallIntegerOverflow)?
+                        as usize
+                        - 15;
+
+                    // Read the iovec entry pointer and length
+                    let buf: usize = self.memory.read(VirtAddr(ptr))?;
+                    let len: usize = self.memory.read(VirtAddr(ptr + 8))?;
+
+                    // Look at the buffer
+                    let data = self.memory.peek(VirtAddr(buf), len)?;
+
+                    if let Ok(output) = core::str::from_utf8(data) {
+                        print!("{}", output);
+                    }
+
+                    bytes_written += data.len() as u64;
+                }
+
+                self.set_reg(Register::A0, bytes_written);
+                Ok(())
+            }
             96 => {
                 // set_tid_address(), just return the TID
                 self.set_reg(Register::A0, 1337);
@@ -690,6 +735,9 @@ impl From<u32> for Register {
 pub enum EmuStop {
     /// Emulation stopped because a syscall was made
     Syscall,
+
+    /// Emulation stopped because an overflow happened in syscall
+    SyscallIntegerOverflow,
 
     /// An address calculation overflowed
     AddressOverflow,
