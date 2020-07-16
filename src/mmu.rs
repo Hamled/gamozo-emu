@@ -1,3 +1,4 @@
+use crate::emulator::EmuStop;
 use crate::primitive::Primitive;
 
 pub const PERM_READ: u8 = 1 << 0;
@@ -122,21 +123,28 @@ impl Mmu {
         Some(())
     }
 
-    pub fn write_from(&mut self, addr: VirtAddr, buf: &[u8]) -> Option<()> {
+    pub fn write_from(&mut self, addr: VirtAddr, buf: &[u8]) -> Result<(), EmuStop> {
+        let start = addr.0;
+        let end = start
+            .checked_add(buf.len())
+            .ok_or(EmuStop::AddressOverflow)?;
+
         let perms = self
             .permissions
-            .get_mut(addr.0..addr.0.checked_add(buf.len())?)?;
+            .get_mut(start..end)
+            .ok_or(EmuStop::AddressMiss(VirtAddr(start), buf.len()))?;
 
         let mut has_raw = false;
-        if !perms.iter_mut().all(|x| {
-            has_raw |= (x.0 & PERM_RAW) != 0;
-            (x.0 & PERM_WRITE) != 0
-        }) {
-            return None;
+        for (addr, perm) in perms.iter_mut().enumerate() {
+            if (perm.0 & PERM_WRITE) == 0 {
+                return Err(EmuStop::WriteFault(VirtAddr(addr)));
+            }
+            has_raw |= (perm.0 & PERM_RAW) != 0;
         }
 
         self.memory
-            .get_mut(addr.0..addr.0.checked_add(buf.len())?)?
+            .get_mut(start..end)
+            .ok_or(EmuStop::AddressMiss(VirtAddr(start), buf.len()))?
             .copy_from_slice(buf);
 
         let block_start = addr.0 / DIRTY_BLOCK_SIZE;
@@ -163,41 +171,60 @@ impl Mmu {
             });
         }
 
-        Some(())
+        Ok(())
     }
 
     /// Read the memory at `addr` into `buf` assuming all `exp_perms` bits are set
     /// This functions checks to see if all bits in `exp_perms` are set in the permission bytes.
     /// If this is zero, we ignore permissions entirely.
-    pub fn read_into_perms(&self, addr: VirtAddr, buf: &mut [u8], exp_perms: Perm) -> Option<()> {
+    pub fn read_into_perms(
+        &self,
+        addr: VirtAddr,
+        buf: &mut [u8],
+        exp_perms: Perm,
+    ) -> Result<(), EmuStop> {
+        let start = addr.0;
+        let end = start
+            .checked_add(buf.len())
+            .ok_or(EmuStop::AddressOverflow)?;
+
         let perms = self
             .permissions
-            .get(addr.0..addr.0.checked_add(buf.len())?)?;
+            .get(start..end)
+            .ok_or(EmuStop::AddressMiss(VirtAddr(start), buf.len()))?;
 
-        if exp_perms.0 != 0 && !perms.iter().all(|x| (x.0 & exp_perms.0) == exp_perms.0) {
-            return None;
+        if exp_perms.0 != 0 {
+            for (addr, perm) in perms.iter().enumerate() {
+                if (perm.0 & exp_perms.0) != exp_perms.0 {
+                    return Err(EmuStop::ReadFault(VirtAddr(addr)));
+                }
+            }
         }
 
-        buf.copy_from_slice(self.memory.get(addr.0..addr.0.checked_add(buf.len())?)?);
+        buf.copy_from_slice(
+            self.memory
+                .get(start..end)
+                .ok_or(EmuStop::AddressMiss(VirtAddr(start), buf.len()))?,
+        );
 
-        Some(())
+        Ok(())
     }
 
-    pub fn read_into(&self, addr: VirtAddr, buf: &mut [u8]) -> Option<()> {
+    pub fn read_into(&self, addr: VirtAddr, buf: &mut [u8]) -> Result<(), EmuStop> {
         self.read_into_perms(addr, buf, Perm(PERM_READ))
     }
 
-    pub fn read_perms<T: Primitive>(&self, addr: VirtAddr, exp_perms: Perm) -> Option<T> {
+    pub fn read_perms<T: Primitive>(&self, addr: VirtAddr, exp_perms: Perm) -> Result<T, EmuStop> {
         let mut tmp = [0u8; 16];
         self.read_into_perms(addr, &mut tmp[..core::mem::size_of::<T>()], exp_perms)?;
-        Some(unsafe { core::ptr::read_unaligned(tmp.as_ptr() as *const T) })
+        Ok(unsafe { core::ptr::read_unaligned(tmp.as_ptr() as *const T) })
     }
 
-    pub fn read<T: Primitive>(&self, addr: VirtAddr) -> Option<T> {
+    pub fn read<T: Primitive>(&self, addr: VirtAddr) -> Result<T, EmuStop> {
         self.read_perms(addr, Perm(PERM_READ))
     }
 
-    pub fn write<T: Primitive>(&mut self, addr: VirtAddr, val: T) -> Option<()> {
+    pub fn write<T: Primitive>(&mut self, addr: VirtAddr, val: T) -> Result<(), EmuStop> {
         let tmp = unsafe {
             core::slice::from_raw_parts(&val as *const T as *const u8, core::mem::size_of::<T>())
         };
@@ -211,7 +238,8 @@ impl Mmu {
             section.virt_addr,
             file_contents
                 .get(section.file_off..section.file_off.checked_add(section.file_size)?)?,
-        )?;
+        )
+        .ok()?;
 
         // Write in any padding with zeros
         if section.mem_size > section.file_size {
@@ -219,7 +247,8 @@ impl Mmu {
             self.write_from(
                 VirtAddr(section.virt_addr.0.checked_add(section.file_size)?),
                 &padding,
-            )?;
+            )
+            .ok()?;
         }
 
         // Demote permissions to originals
