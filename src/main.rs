@@ -3,7 +3,7 @@ pub mod mmu;
 pub mod primitive;
 
 use emulator::{Emulator, Register};
-use mmu::{Perm, Section, VirtAddr, PERM_EXEC, PERM_READ, PERM_WRITE};
+use mmu::{Perm, Section, VirtAddr, PERM_EXEC, PERM_RAW, PERM_READ, PERM_WRITE};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -108,6 +108,13 @@ fn main() {
     emu.set_reg(Register::Pc, 0x104cc);
 
     // Setup a stack
+
+    //   - First create a region with no perms to hopefully catch
+    //     stack overflows
+    emu.memory
+        .allocate_perms(1024, Perm(PERM_RAW))
+        .expect("Failed to allocate stack guard");
+
     let stack = emu
         .memory
         .allocate(32 * 1024)
