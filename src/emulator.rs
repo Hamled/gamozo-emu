@@ -153,7 +153,7 @@ impl Emulator {
                 let fd = self.reg(Register::A0) as i64;
 
                 if DEBUG_SYSCALL {
-                    println!("close({})", fd);
+                    print!("close({})", fd);
                 }
 
                 if fd > 2 {
@@ -163,6 +163,9 @@ impl Emulator {
 
                 self.set_reg(Register::A0, 0);
 
+                if DEBUG_SYSCALL {
+                    println!(" = {:#x}", self.reg(Register::A0));
+                }
                 Ok(())
             }
             64 => {
@@ -172,7 +175,7 @@ impl Emulator {
                 let len = self.reg(Register::A2) as u64;
 
                 if DEBUG_SYSCALL {
-                    println!("write({}, {:#x}, {:#x})", fd, buf, len);
+                    print!("write({}, {:#x}, {:#x})", fd, buf, len);
                 }
 
                 if fd != 1 && fd != 2 {
@@ -198,6 +201,9 @@ impl Emulator {
                     }
                 }
 
+                if DEBUG_SYSCALL {
+                    println!(" = {:#x}", self.reg(Register::A0));
+                }
                 Ok(())
             }
             93 => {
@@ -216,7 +222,7 @@ impl Emulator {
                 let break_new = self.reg(Register::A0) as usize;
 
                 if DEBUG_SYSCALL {
-                    println!("brk({:#x})", break_new);
+                    print!("brk({:#x})", break_new);
                 }
 
                 match self.sbrk(break_new) {
@@ -224,6 +230,9 @@ impl Emulator {
                     Some(break_current) => self.set_reg(Register::A0, break_current.0 as u64),
                 }
 
+                if DEBUG_SYSCALL {
+                    println!(" = {:#x}", self.reg(Register::A0));
+                }
                 Ok(())
             }
             _ => panic!("Unhandled syscall {}\n", num),
