@@ -242,6 +242,19 @@ impl Emulator {
                     Some(break_current) => self.set_reg(Register::A0, break_current.0 as u64),
                 }
             }
+            1024 => {
+                // open()
+                let filepath = self.reg(Register::A0) as u64;
+                let flags = self.reg(Register::A1) as i64;
+                let mode = self.reg(Register::A2) as i64;
+
+                if DEBUG_SYSCALL {
+                    print!("open({:#x}, {}, {})", filepath, flags, mode);
+                }
+
+                // TODO: Add real file support
+                self.set_reg(Register::A0, !0);
+            }
             _ => panic!("Unhandled syscall {}\n", num),
         }
 
