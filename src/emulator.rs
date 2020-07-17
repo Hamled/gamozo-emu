@@ -64,13 +64,15 @@ impl Emulator {
         Some(())
     }
 
-    pub fn run(&mut self) -> Result<(), EmuStop> {
+    pub fn run(&mut self, instrs_execed: &mut u64) -> Result<(), EmuStop> {
         loop {
             // Get the current program counter
             let pc = self.reg(Register::Pc);
             let inst: u32 = self
                 .memory
                 .read_perms(VirtAddr(pc as usize), Perm(PERM_EXEC))?;
+
+            *instrs_execed += 1;
 
             // Execute the instruction if possible
             match self.exec_inst(pc, inst) {

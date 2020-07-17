@@ -7,7 +7,7 @@ use mmu::{Perm, Section, VirtAddr, PERM_EXEC, PERM_READ, PERM_WRITE};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-const THREADS: usize = 8;
+const THREADS: usize = 1;
 
 #[derive(Default)]
 /// Statistics during fuzzing
@@ -17,6 +17,9 @@ struct Statistics {
 
     /// Number of crashes
     crashes: u64,
+
+    /// RISC-V instructions executed
+    instrs_execed: u64,
 }
 
 fn worker(mut emu: Emulator, original: Arc<Emulator>, stats: Arc<Mutex<Statistics>>) {
@@ -28,7 +31,7 @@ fn worker(mut emu: Emulator, original: Arc<Emulator>, stats: Arc<Mutex<Statistic
         for _ in 0..BATCH_SIZE {
             emu.reset(&*original);
 
-            if emu.run().is_err() {
+            if emu.run(&mut local_stats.instrs_execed).is_err() {
                 local_stats.crashes += 1;
             }
 
@@ -40,6 +43,7 @@ fn worker(mut emu: Emulator, original: Arc<Emulator>, stats: Arc<Mutex<Statistic
 
         stats.fuzz_cases += local_stats.fuzz_cases;
         stats.crashes += local_stats.crashes;
+        stats.instrs_execed += local_stats.instrs_execed;
     }
 }
 
@@ -124,6 +128,7 @@ fn main() {
     }
 
     let mut last_cases = 0;
+    let mut last_instrs = 0;
     loop {
         std::thread::sleep(Duration::from_millis(1000));
 
@@ -131,15 +136,18 @@ fn main() {
 
         let fuzz_cases = stats.fuzz_cases;
         let crashes = stats.crashes;
+        let instrs = stats.instrs_execed;
 
         println!(
-            "cases {:10} ({:8}/s) | crashes {:10} ({:3}%)",
+            "cases {:10} ({:8}/s) | crashes {:10} ({:3}%) | Minst/sec {:10}",
             fuzz_cases,
             fuzz_cases - last_cases,
             crashes,
             (crashes as f64 / fuzz_cases as f64) * 100.0,
+            (instrs - last_instrs) / 1_000_000
         );
 
         last_cases = fuzz_cases;
+        last_instrs = instrs;
     }
 }
