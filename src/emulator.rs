@@ -138,7 +138,7 @@ impl Emulator {
                         self.set_reg(inst.rd, pc.wrapping_add(4));
                         return Ok(target);
                     }
-                    _ => unimplemented!("Unexpected 0b1100111"),
+                    _ => unimplemented!("Unexpected {:7b}", opcode),
                 }
             }
             0b1100011 => {
@@ -184,7 +184,7 @@ impl Emulator {
                             return Ok(pc.wrapping_add(inst.imm as i64 as u64));
                         }
                     }
-                    _ => unimplemented!("Unexpected 0b1100011"),
+                    _ => unimplemented!("Unexpected {:7b}", opcode),
                 }
             }
             0b0000011 => {
@@ -238,7 +238,7 @@ impl Emulator {
                         self.memory.read_into(addr, &mut tmp)?;
                         self.set_reg(inst.rd, u32::from_le_bytes(tmp) as u64);
                     }
-                    _ => unimplemented!("Unexpected 0b0000111"),
+                    _ => unimplemented!("Unexpected {:7b}", opcode),
                 }
             }
             0b0100011 => {
@@ -270,7 +270,7 @@ impl Emulator {
                         let val = self.reg(inst.rs2) as u64;
                         self.memory.write(addr, val)?;
                     }
-                    _ => unimplemented!("Unexpected 0b0100111"),
+                    _ => unimplemented!("Unexpected {:7b}", opcode),
                 }
             }
             0b0010011 => {
@@ -323,7 +323,7 @@ impl Emulator {
                                 let shamt = inst.imm & 0b111111;
                                 self.set_reg(inst.rd, ((rs1 as i64) >> shamt) as u64);
                             }
-                            _ => unimplemented!("Unexpected 0b0010011"),
+                            _ => unimplemented!("Unexpected {:7b}", opcode),
                         }
                     }
                     0b110 => {
@@ -334,7 +334,7 @@ impl Emulator {
                         // ANDI
                         self.set_reg(inst.rd, rs1 & imm);
                     }
-                    _ => unimplemented!("Unexpected 0b0010011"),
+                    _ => unimplemented!("Unexpected {:7b}", opcode),
                 }
             }
             0b0110011 => {
@@ -441,7 +441,7 @@ impl Emulator {
                                 let shamt = inst.imm & 0b11111;
                                 self.set_reg(inst.rd, (rs1 << shamt) as i32 as i64 as u64);
                             }
-                            _ => unimplemented!("Unexpected 0b0011011"),
+                            _ => unimplemented!("Unexpected {:7b}", opcode),
                         }
                     }
                     0b101 => {
@@ -456,10 +456,10 @@ impl Emulator {
                                 // SRAIW
                                 self.set_reg(inst.rd, ((rs1 as i32) >> shamt) as i64 as u64);
                             }
-                            _ => unimplemented!("Unexpected 0b0011011"),
+                            _ => unimplemented!("Unexpected {:7b}", opcode),
                         }
                     }
-                    _ => unimplemented!("Unexpected 0b0011011"),
+                    _ => unimplemented!("Unexpected {:7b}", opcode),
                 }
             }
             0b0111011 => {
