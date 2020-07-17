@@ -90,7 +90,7 @@ fn main() {
     let program = "./objdump";
     let args: Vec<&str> = vec![program, "-x", "test_app"];
 
-    let mut emu = Emulator::new(1024 * 1024);
+    let mut emu = Emulator::new(32 * 1024 * 1024);
     emu.load(
         program,
         &[
