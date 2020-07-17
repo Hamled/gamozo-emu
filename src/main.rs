@@ -7,6 +7,7 @@ use mmu::{Perm, Section, VirtAddr, PERM_EXEC, PERM_READ, PERM_WRITE};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+pub const DEBUG: usize = 0; // Increase for more debug info
 const THREADS: usize = 1;
 
 fn rdtsc() -> u64 {
@@ -53,8 +54,11 @@ fn worker(mut emu: Emulator, original: Arc<Emulator>, stats: Arc<Mutex<Statistic
             let res = emu.run(&mut local_stats.instrs_execed);
             local_stats.emu_cycles += rdtsc() - it;
 
-            if res.is_err() {
+            if let Err(reason) = res {
                 local_stats.crashes += 1;
+                if DEBUG > 0 {
+                    println!("Emu stopped with: {:#x?}", reason);
+                }
             }
 
             local_stats.fuzz_cases += 1;
@@ -71,6 +75,10 @@ fn worker(mut emu: Emulator, original: Arc<Emulator>, stats: Arc<Mutex<Statistic
         stats.worker_cycles += rdtsc() - batch_start;
         stats.reset_cycles += local_stats.reset_cycles;
         stats.emu_cycles += local_stats.emu_cycles;
+
+        if DEBUG > 0 {
+            break;
+        }
     }
 }
 
@@ -188,5 +196,9 @@ fn main() {
 
         last_cases = fuzz_cases;
         last_instrs = instrs;
+
+        if DEBUG > 0 {
+            break;
+        }
     }
 }

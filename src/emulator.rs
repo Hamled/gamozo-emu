@@ -1,7 +1,9 @@
 use crate::mmu::{Mmu, Perm, Section, VirtAddr, PERM_EXEC};
+use crate::DEBUG;
 use std::path::Path;
 
-const VERBOSE_GUEST_PRINTS: bool = false;
+const VERBOSE_GUEST_PRINTS: bool = DEBUG > 0;
+const DEBUG_EXEC: bool = DEBUG > 1;
 
 /// All the state of the emulated system
 pub struct Emulator {
@@ -161,6 +163,10 @@ impl Emulator {
     fn exec_inst(&mut self, pc: u64, inst: u32) -> Result<u64, EmuStop> {
         // Extract the opcode from the instruction
         let opcode = inst & 0b1111111;
+
+        if DEBUG_EXEC {
+            println!("{:#x} {:07b}", pc, opcode);
+        }
 
         match opcode {
             0b0110111 => {
