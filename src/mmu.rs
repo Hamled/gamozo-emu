@@ -142,7 +142,7 @@ impl Mmu {
         let mut has_raw = false;
         for (addr, perm) in perms.iter_mut().enumerate() {
             if (perm.0 & PERM_WRITE) == 0 {
-                return Err(EmuStop::WriteFault(VirtAddr(addr)));
+                return Err(EmuStop::WriteFault(VirtAddr(start + addr)));
             }
             has_raw |= (perm.0 & PERM_RAW) != 0;
         }
@@ -202,9 +202,9 @@ impl Mmu {
             for (addr, perm) in perms.iter().enumerate() {
                 if (perm.0 & exp_perms.0) != exp_perms.0 {
                     return Err(if perm.0 & PERM_RAW != 0 {
-                        EmuStop::UninitFault(VirtAddr(addr))
+                        EmuStop::UninitFault(VirtAddr(start + addr))
                     } else {
-                        EmuStop::ReadFault(VirtAddr(addr))
+                        EmuStop::ReadFault(VirtAddr(start + addr))
                     });
                 }
             }
@@ -240,7 +240,7 @@ impl Mmu {
         if exp_perms.0 != 0 {
             for (addr, &perm) in perms.iter().enumerate() {
                 if (perm.0 & exp_perms.0) != exp_perms.0 {
-                    return Err(EmuStop::ReadFault(VirtAddr(addr)));
+                    return Err(EmuStop::ReadFault(VirtAddr(start + addr)));
                 }
             }
         }
