@@ -1,4 +1,5 @@
 pub mod emulator;
+pub mod file;
 pub mod mmu;
 pub mod primitive;
 

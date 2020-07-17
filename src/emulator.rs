@@ -1,3 +1,4 @@
+use crate::file::{File, FileSystem};
 use crate::mmu::{Mmu, Perm, Section, VirtAddr, PERM_EXEC};
 use crate::DEBUG;
 use std::path::Path;
@@ -17,6 +18,9 @@ pub struct Emulator {
     break_min: VirtAddr,
     break_current: VirtAddr,
     break_max: VirtAddr,
+
+    // Files used by program (including stdin/out/err)
+    filesystem: FileSystem,
 }
 
 impl Emulator {
@@ -25,9 +29,12 @@ impl Emulator {
         Emulator {
             memory: Mmu::new(size),
             registers: [0; 33],
+
             break_min: VirtAddr(!0),
             break_current: VirtAddr(!0),
             break_max: VirtAddr(!0),
+
+            filesystem: FileSystem::default(),
         }
     }
 
@@ -36,9 +43,12 @@ impl Emulator {
         Emulator {
             memory: self.memory.fork(),
             registers: self.registers.clone(),
+
             break_min: self.break_min,
             break_current: self.break_current,
             break_max: self.break_max,
+
+            filesystem: self.filesystem.clone(),
         }
     }
 
@@ -55,6 +65,8 @@ impl Emulator {
         self.break_min = other.break_min;
         self.break_current = other.break_current;
         self.break_max = other.break_max;
+
+        self.filesystem = other.filesystem.clone();
     }
 
     pub fn reg(&self, register: Register) -> u64 {
@@ -178,12 +190,19 @@ impl Emulator {
                     print!("close({})", fd);
                 }
 
-                if fd > 2 {
-                    // TODO: Add real file support
-                    unimplemented!("Unhandled close() to fd {}", fd);
-                }
+                let file = self.filesystem.from_fd(fd);
+                match file {
+                    // File doesn't exist
+                    None => self.set_reg(Register::A0, !0),
+                    Some(file) => {
+                        if fd > 2 {
+                            // TODO: Add real file support
+                            unimplemented!("Unhandled close() to file {:?}", file);
+                        }
 
-                self.set_reg(Register::A0, 0);
+                        self.set_reg(Register::A0, 0);
+                    }
+                }
             }
             62 => {
                 // lseek()
@@ -208,11 +227,18 @@ impl Emulator {
                     print!("read({}, {:#x}, {:#x})", fd, ptr, len);
                 }
 
-                if fd != 0 {
-                    // TODO: Add real file support
-                    self.set_reg(Register::A0, !0);
-                } else {
-                    unimplemented!("Unhandled read() from stdin");
+                let file = self.filesystem.from_fd(fd);
+                match file {
+                    // File doesn't exist
+                    None => self.set_reg(Register::A0, !0),
+                    Some(file) => {
+                        if file != File::Stdin {
+                            // TODO: Add real file support
+                            self.set_reg(Register::A0, !0);
+                        } else {
+                            unimplemented!("Unhandled read() from stdin");
+                        }
+                    }
                 }
             }
             64 => {
@@ -225,26 +251,33 @@ impl Emulator {
                     print!("write({}, {:#x}, {:#x})", fd, buf, len);
                 }
 
-                if fd != 1 && fd != 2 {
-                    // TODO: Add real file support
-                    unimplemented!("Unhandled write() to fd {}", fd);
-                } else {
-                    // Say that we read everything
-                    self.set_reg(Register::A0, len);
+                let file = self.filesystem.from_fd(fd);
+                match file {
+                    // File doesn't exist
+                    None => self.set_reg(Register::A0, !0),
+                    Some(file) => {
+                        if file != File::Stdout && file != File::Stderr {
+                            // TODO: Add real file support
+                            unimplemented!("Unhandled write() to fd {}", fd);
+                        } else {
+                            // Say that we read everything
+                            self.set_reg(Register::A0, len);
 
-                    if DEBUG_PRINTS {
-                        print!(
-                            "{}",
-                            core::str::from_utf8(
-                                self.memory.peek(VirtAddr(buf as usize), len as usize)?
-                            )
-                            .unwrap_or(&format!(
-                                "write(): Non-UTF8 string at {:#x} len {:#x}, pc = {:#x}",
-                                buf,
-                                len,
-                                self.reg(Register::Pc)
-                            ))
-                        );
+                            if DEBUG_PRINTS {
+                                print!(
+                                    "{}",
+                                    core::str::from_utf8(
+                                        self.memory.peek(VirtAddr(buf as usize), len as usize)?
+                                    )
+                                    .unwrap_or(&format!(
+                                        "write(): Non-UTF8 string at {:#x} len {:#x}, pc = {:#x}",
+                                        buf,
+                                        len,
+                                        self.reg(Register::Pc)
+                                    ))
+                                );
+                            }
+                        }
                     }
                 }
             }
