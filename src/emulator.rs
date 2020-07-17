@@ -184,11 +184,6 @@ impl Emulator {
                 }
 
                 self.set_reg(Register::A0, 0);
-
-                if DEBUG_SYSCALL {
-                    println!(" = {:#x}", self.reg(Register::A0));
-                }
-                Ok(())
             }
             64 => {
                 // write()
@@ -222,11 +217,6 @@ impl Emulator {
                         );
                     }
                 }
-
-                if DEBUG_SYSCALL {
-                    println!(" = {:#x}", self.reg(Register::A0));
-                }
-                Ok(())
             }
             93 => {
                 // exit()
@@ -237,7 +227,7 @@ impl Emulator {
                 }
 
                 // We're done emulating
-                Err(EmuStop::Exit)
+                return Err(EmuStop::Exit);
             }
             214 => {
                 // brk()
@@ -251,14 +241,14 @@ impl Emulator {
                     None => self.set_reg(Register::A0, !0),
                     Some(break_current) => self.set_reg(Register::A0, break_current.0 as u64),
                 }
-
-                if DEBUG_SYSCALL {
-                    println!(" = {:#x}", self.reg(Register::A0));
-                }
-                Ok(())
             }
             _ => panic!("Unhandled syscall {}\n", num),
         }
+
+        if DEBUG_SYSCALL {
+            println!(" = {:#x}", self.reg(Register::A0));
+        }
+        Ok(())
     }
 
     fn exec_inst(&mut self, pc: u64, inst: u32) -> Result<u64, EmuStop> {
