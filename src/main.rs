@@ -123,17 +123,23 @@ fn main() {
         });
     }
 
+    let mut last_cases = 0;
     loop {
         std::thread::sleep(Duration::from_millis(1000));
 
         let stats = stats.lock().unwrap();
 
+        let fuzz_cases = stats.fuzz_cases;
+        let crashes = stats.crashes;
+
         println!(
-            "cases {:10} | crashes {:10} ({:3}%)",
-            stats.fuzz_cases,
-            stats.crashes,
-            stats.crashes as f64 / stats.fuzz_cases as f64
+            "cases {:10} ({:8}/s) | crashes {:10} ({:3}%)",
+            fuzz_cases,
+            fuzz_cases - last_cases,
+            crashes,
             (crashes as f64 / fuzz_cases as f64) * 100.0,
         );
+
+        last_cases = fuzz_cases;
     }
 }
