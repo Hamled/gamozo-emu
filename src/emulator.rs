@@ -4,6 +4,7 @@ use std::path::Path;
 
 const DEBUG_PRINTS: bool = DEBUG > 0;
 const DEBUG_SYSCALL: bool = DEBUG > 1;
+const DEBUG_ALLOC_FAIL: bool = DEBUG > 2;
 const DEBUG_EXEC: bool = DEBUG > 5;
 
 /// All the state of the emulated system
@@ -106,9 +107,30 @@ impl Emulator {
 
         if break_new > self.break_max.0 {
             // Allocate more space for heap
-            self.memory
-                .allocate(break_new.checked_sub(self.break_max.0)?)?;
-            self.break_max = VirtAddr(break_new);
+            let additional = break_new.checked_sub(self.break_max.0);
+            if additional.is_none() {
+                if DEBUG_ALLOC_FAIL {
+                    println!(
+                        "Got negative break from sbrk({:#x}), break_max: {:#x}",
+                        break_new, self.break_max.0
+                    );
+                }
+                return None;
+            }
+
+            let additional = additional.unwrap();
+            match self.memory.allocate(additional) {
+                Some(break_new) => self.break_max = break_new,
+                None => {
+                    if DEBUG_ALLOC_FAIL {
+                        println!(
+                            "Unable to alloc {:#x} bytes for sbrk({:#x})",
+                            additional, break_new
+                        );
+                    }
+                    return None;
+                }
+            }
         }
 
         // Modify the break as requested
