@@ -451,16 +451,15 @@ impl Emulator {
                         }
                     }
                     0b101 => {
+                        let shamt = inst.imm & 0b11111;
                         let mode = (inst.imm >> 5) & 0b1111111;
                         match mode {
-                            0b000000 => {
+                            0b0000000 => {
                                 // SRLIW
-                                let shamt = inst.imm & 0b11111;
                                 self.set_reg(inst.rd, (rs1 >> shamt) as i32 as i64 as u64);
                             }
-                            0b010000 => {
+                            0b0100000 => {
                                 // SRAIW
-                                let shamt = inst.imm & 0b11111;
                                 self.set_reg(inst.rd, ((rs1 as i32) >> shamt) as i64 as u64);
                             }
                             _ => unimplemented!("Unexpected 0b0011011"),
