@@ -9,6 +9,10 @@ use std::time::{Duration, Instant};
 
 const THREADS: usize = 1;
 
+fn rdtsc() -> u64 {
+    unsafe { std::arch::x86_64::_rdtsc() }
+}
+
 #[derive(Default)]
 /// Statistics during fuzzing
 struct Statistics {
@@ -20,18 +24,36 @@ struct Statistics {
 
     /// RISC-V instructions executed
     instrs_execed: u64,
+
+    /// CPU cycles spent in workers
+    worker_cycles: u64,
+
+    /// CPU cycles spent resetting guests
+    reset_cycles: u64,
+
+    /// CPU cycles spent emulating
+    emu_cycles: u64,
 }
 
 fn worker(mut emu: Emulator, original: Arc<Emulator>, stats: Arc<Mutex<Statistics>>) {
     const BATCH_SIZE: usize = 100;
 
     loop {
+        // Start worker timer
+        let batch_start = rdtsc();
+
         let mut local_stats = Statistics::default();
 
         for _ in 0..BATCH_SIZE {
+            let it = rdtsc();
             emu.reset(&*original);
+            local_stats.reset_cycles += rdtsc() - it;
 
-            if emu.run(&mut local_stats.instrs_execed).is_err() {
+            let it = rdtsc();
+            let res = emu.run(&mut local_stats.instrs_execed);
+            local_stats.emu_cycles += rdtsc() - it;
+
+            if res.is_err() {
                 local_stats.crashes += 1;
             }
 
@@ -44,6 +66,11 @@ fn worker(mut emu: Emulator, original: Arc<Emulator>, stats: Arc<Mutex<Statistic
         stats.fuzz_cases += local_stats.fuzz_cases;
         stats.crashes += local_stats.crashes;
         stats.instrs_execed += local_stats.instrs_execed;
+
+        // Track amount of cycles spent in worker for this batch
+        stats.worker_cycles += rdtsc() - batch_start;
+        stats.reset_cycles += local_stats.reset_cycles;
+        stats.emu_cycles += local_stats.emu_cycles;
     }
 }
 
@@ -143,14 +170,20 @@ fn main() {
         let crashes = stats.crashes;
         let instrs = stats.instrs_execed;
 
+        let reset_pct = (stats.reset_cycles as f64 / stats.worker_cycles as f64) * 100.0;
+        let emu_pct = (stats.emu_cycles as f64 / stats.worker_cycles as f64) * 100.0;
+
         println!(
-            "[{:8.0}] cases {:10} ({:8}/s) | crashes {:10} ({:3}%) | Minst/sec {:10}",
+            "[{:8.0}] cases {:10} ({:8}/s) | crashes {:10} ({:3}%) | Minst/sec {:10}\n\
+             reset {:3.1}% | emu {:3.1}%",
             elapsed,
             fuzz_cases,
             fuzz_cases - last_cases,
             crashes,
             (crashes as f64 / fuzz_cases as f64) * 100.0,
-            (instrs - last_instrs) / 1_000_000
+            (instrs - last_instrs) / 1_000_000,
+            reset_pct,
+            emu_pct
         );
 
         last_cases = fuzz_cases;
