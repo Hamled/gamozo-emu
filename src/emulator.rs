@@ -185,6 +185,19 @@ impl Emulator {
 
                 self.set_reg(Register::A0, 0);
             }
+            62 => {
+                // lseek()
+                let fd = self.reg(Register::A0) as i64;
+                let ptr = self.reg(Register::A1) as u64;
+                let dir = self.reg(Register::A2) as i64;
+
+                if DEBUG_SYSCALL {
+                    print!("lseek({}, {:#x}, {})", fd, ptr, dir);
+                }
+
+                // TODO: Add real file support
+                self.set_reg(Register::A0, !0);
+            }
             64 => {
                 // write()
                 let fd = self.reg(Register::A0) as i64;
