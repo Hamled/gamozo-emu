@@ -160,7 +160,7 @@ fn main() {
 
     // Argv, Argc
     push!(0u64); // Argv null
-    for arg_ptr in &argv {
+    for arg_ptr in (&argv).iter().rev() {
         push!(arg_ptr.0);
     }
     push!(argv.len() as u64);
