@@ -238,12 +238,6 @@ impl Emulator {
                         self.memory.read_into(addr, &mut tmp)?;
                         self.set_reg(inst.rd, u32::from_le_bytes(tmp) as u64);
                     }
-                    0b111 => {
-                        // LDU
-                        let mut tmp = [0u8; 8];
-                        self.memory.read_into(addr, &mut tmp)?;
-                        self.set_reg(inst.rd, u64::from_le_bytes(tmp) as u64);
-                    }
                     _ => unimplemented!("Unexpected 0b0000111"),
                 }
             }
