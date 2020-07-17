@@ -84,6 +84,8 @@ impl Mmu {
             self.memory[start..end].copy_from_slice(&other.memory[start..end]);
         }
 
+        self.cur_alc = other.cur_alc;
+
         // Clear the dirty list
         self.dirty.clear();
     }
