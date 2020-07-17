@@ -1,18 +1,20 @@
 use crate::file::{File, FileSystem};
 use crate::mmu::{Mmu, Perm, Section, VirtAddr, PERM_EXEC};
 use crate::DEBUG;
-use std::cell::RefCell;
+use std::collections::btree_set::Difference;
+use std::collections::BTreeSet;
 use std::fmt;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
+use std::sync::Arc;
 
 const DEBUG_PRINTS: bool = DEBUG > 0;
 const DEBUG_SYSCALL: bool = DEBUG > 1;
 const DEBUG_ALLOC_FAIL: bool = DEBUG > 2;
 const DEBUG_EXEC: bool = DEBUG > 5;
 
-const JIT_INSTS_MAX: usize = 1;
+const JIT_INSTS_MAX: usize = 2;
 
 /// All the state of the emulated system
 pub struct Emulator {
@@ -28,8 +30,9 @@ pub struct Emulator {
     // Files used by program (including stdin/out/err)
     filesystem: FileSystem,
 
-    jit_file: RefCell<Option<fs::File>>,
-    jit_insts: usize,
+    jit_file: Option<fs::File>,
+    jit_insts: BTreeSet<u64>,
+    jit_targets: BTreeSet<u64>,
 }
 
 impl Emulator {
@@ -45,8 +48,9 @@ impl Emulator {
 
             filesystem: FileSystem::default(),
 
-            jit_file: RefCell::new(None),
-            jit_insts: 0,
+            jit_file: None,
+            jit_insts: BTreeSet::new(),
+            jit_targets: BTreeSet::new(),
         }
     }
 
@@ -62,8 +66,9 @@ impl Emulator {
 
             filesystem: self.filesystem.clone(),
 
-            jit_file: RefCell::new(None),
-            jit_insts: 0,
+            jit_file: None,
+            jit_insts: BTreeSet::new(),
+            jit_targets: BTreeSet::new(),
         }
     }
 
@@ -174,6 +179,11 @@ impl Emulator {
                 .read_perms(VirtAddr(pc as usize), Perm(PERM_EXEC))?;
 
             *instrs_execed += 1;
+
+            if self.jit_file.is_none() {
+                self.jit_file =
+                    Some(fs::File::create("jitcode.rs").expect("Could not create jitcode.rs"));
+            }
 
             // JIT the instruction
             self.jit_inst(pc, inst);
@@ -745,20 +755,44 @@ impl Emulator {
         Ok(pc.wrapping_add(4))
     }
 
-    fn jit_inst(&mut self, pc: u64, inst: u32) {
-        let mut file = match *self.jit_file.borrow_mut() {
-            None => {
-                let mut file = fs::File::create("jitcode.rs").expect("Could not create jitcode.rs");
-                self.jit_file.replace(Some(file));
-                file
-            }
-            Some(file) => file,
-        };
+    fn jit_write(&mut self, content: &[u8]) {
+        self.jit_file
+            .as_mut()
+            .unwrap()
+            .write_all(content)
+            .expect("Could not write jit file content");
+    }
 
-        if self.jit_insts == 0 {
+    fn write_unresolved(&mut self) {
+        for target in self.jit_targets.difference(&self.jit_insts) {
+            self.jit_write(
+                format!(
+                    "
+extern \"Rust\" {{
+    #[no_mangle]
+    fn inst_{:8x}(regs: &mut Registers);
+}}
+",
+                    target
+                )
+                .as_bytes(),
+            );
+        }
+    }
+
+    fn jit_inst(&mut self, pc: u64, inst: u32) {
+        if self.jit_insts.len() >= JIT_INSTS_MAX {
+            // Output file epilogue
+            self.jit_file = None;
+            panic!("Done with JIT");
+        }
+
+        if self.jit_insts.len() == 0 {
             // Emit file prologue
-            file.write_all(
+            self.jit_write(
                 b"
+#![feature(asm)]
+
 pub struct Registers {
     Zero: u64,
     Ra: u64,
@@ -800,11 +834,11 @@ pub struct Registers {
         }
 
         // Emit function prologue
-        file.write_all(
+        self.jit_write(
             format!(
                 "
 #[no_mangle]
-pub extern fn inst_{:x}(regs: &mut Registers) {{
+pub extern fn inst_{:8x}(regs: &mut Registers) {{
 ",
                 pc
             )
@@ -820,16 +854,16 @@ pub extern fn inst_{:x}(regs: &mut Registers) {{
             0b0110111 => {
                 // LUI
                 let inst = Utype::from(inst);
-                file.write_all(
-                    format!("regs.{} = {};\n", inst.rd, inst.imm as i64 as u64).as_bytes(),
+                self.jit_write(
+                    format!("regs.{} = {:#x};\n", inst.rd, inst.imm as i64 as u64).as_bytes(),
                 );
             }
             0b0010111 => {
                 // AUIPC
                 let inst = Utype::from(inst);
-                file.write_all(
+                self.jit_write(
                     format!(
-                        "regs.{} = regs.Pc.wrapping_add({});\n",
+                        "regs.{} = regs.Pc.wrapping_add({:#x});\n",
                         inst.rd, inst.imm as i64 as u64
                     )
                     .as_bytes(),
@@ -838,7 +872,9 @@ pub extern fn inst_{:x}(regs: &mut Registers) {{
             0b1101111 => {
                 // JAL
                 let inst = Jtype::from(inst);
-                file.write_all(format!("regs.{} = regs.Pc.wrapping_add(4);\n", inst.rd).as_bytes());
+                self.jit_write(
+                    format!("regs.{} = regs.Pc.wrapping_add(0x4);\n", inst.rd).as_bytes(),
+                );
                 next_pc = pc.wrapping_add(inst.imm as i64 as u64);
             }
             0b1100111 => {
@@ -848,8 +884,8 @@ pub extern fn inst_{:x}(regs: &mut Registers) {{
                 match inst.funct3 {
                     0b000 => {
                         // JALR
-                        file.write_all(
-                            format!("regs.{} = regs.Pc.wrapping_add(4);\n", inst.rd).as_bytes(),
+                        self.jit_write(
+                            format!("regs.{} = regs.Pc.wrapping_add(0x4);\n", inst.rd).as_bytes(),
                         );
                         let target = self.reg(inst.rs1).wrapping_add(inst.imm as i64 as u64);
                         next_pc = target;
@@ -999,7 +1035,13 @@ pub extern fn inst_{:x}(regs: &mut Registers) {{
                 match inst.funct3 {
                     0b000 => {
                         // ADDI
-                        self.set_reg(inst.rd, rs1.wrapping_add(imm));
+                        self.jit_write(
+                            format!(
+                                "regs.{} = regs.{}.wrapping_add({:#x});\n",
+                                inst.rd, inst.rs1, inst.imm as i32 as i64 as u64
+                            )
+                            .as_bytes(),
+                        );
                     }
                     0b001 => {
                         // SLLI
@@ -1216,14 +1258,10 @@ pub extern fn inst_{:x}(regs: &mut Registers) {{
         }
 
         // Output function epilogue
-        file.write_all(format!("unsafe {{ inst_{:x}(regs); }}\n}}", next_pc).as_bytes());
+        self.jit_write(format!("unsafe {{ inst_{:x}(regs); }}\n}}", next_pc).as_bytes());
 
-        self.jit_insts += 1;
-        if self.jit_insts >= JIT_INSTS_MAX {
-            // Output file epilogue
-            file.flush();
-            self.jit_file.replace(None);
-        }
+        self.jit_insts.insert(pc);
+        self.jit_targets.insert(next_pc);
     }
 }
 
