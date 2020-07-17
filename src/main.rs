@@ -37,7 +37,7 @@ struct Statistics {
 }
 
 fn worker(mut emu: Emulator, original: Arc<Emulator>, stats: Arc<Mutex<Statistics>>) {
-    const BATCH_SIZE: usize = 100;
+    const BATCH_SIZE: usize = if DEBUG > 0 { 2 } else { 100 };
 
     loop {
         // Start worker timer
@@ -155,7 +155,7 @@ fn main() {
     // Create a new stats structure
     let stats = Arc::new(Mutex::new(Statistics::default()));
 
-    for _ in 0..THREADS {
+    for _ in 0..(if DEBUG > 0 { 1 } else { THREADS }) {
         let worker_emu = emu.fork();
         let original = emu.clone();
         let stats = stats.clone();
