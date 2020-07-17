@@ -608,7 +608,7 @@ struct Jtype {
 
 impl From<u32> for Jtype {
     fn from(inst: u32) -> Self {
-        let imm20 = (inst >> 30) & 1;
+        let imm20 = (inst >> 31) & 1;
         let imm101 = (inst >> 21) & 0b1111111111;
         let imm11 = (inst >> 20) & 1;
         let imm1912 = (inst >> 12) & 0b11111111;
