@@ -180,7 +180,7 @@ impl Emulator {
 
                 if fd > 2 {
                     // TODO: Add real file support
-                    panic!("Unhandled close() to fd {}", fd);
+                    unimplemented!("Unhandled close() to fd {}", fd);
                 }
 
                 self.set_reg(Register::A0, 0);
@@ -210,7 +210,7 @@ impl Emulator {
 
                 if fd != 1 && fd != 2 {
                     // TODO: Add real file support
-                    panic!("Unhandled write() to fd {}", fd);
+                    unimplemented!("Unhandled write() to fd {}", fd);
                 } else {
                     // Say that we read everything
                     self.set_reg(Register::A0, len);
@@ -268,7 +268,7 @@ impl Emulator {
                 // TODO: Add real file support
                 self.set_reg(Register::A0, !0);
             }
-            _ => panic!("Unhandled syscall {}\n", num),
+            _ => unimplemented!("Unhandled syscall {}\n", num),
         }
 
         if DEBUG_SYSCALL {
@@ -580,7 +580,7 @@ impl Emulator {
                 match inst.funct3 {
                     0b000 => {
                         // FENCE
-                        panic!("FENCE");
+                        unimplemented!("Unhandled FENCE instruction at {:#x}", pc);
                     }
                     _ => unreachable!(),
                 }
@@ -592,7 +592,7 @@ impl Emulator {
                 }
                 0b100000000000001110011 => {
                     // EBREAK
-                    panic!("EBREAK");
+                    unimplemented!("Unhandled EBREAK instruction at {:#x}", pc);
                 }
                 _ => unreachable!(),
             },
