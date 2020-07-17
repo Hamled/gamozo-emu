@@ -4,23 +4,42 @@ pub mod primitive;
 
 use emulator::{Emulator, Register};
 use mmu::{Perm, Section, VirtAddr, PERM_EXEC, PERM_READ, PERM_WRITE};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 const THREADS: usize = 8;
 
-fn worker(mut emu: Emulator, original: Arc<Emulator>) {
+#[derive(Default)]
+/// Statistics during fuzzing
+struct Statistics {
+    /// Number of fuzz cases
+    fuzz_cases: u64,
+
+    /// Number of crashes
+    crashes: u64,
+}
+
+fn worker(mut emu: Emulator, original: Arc<Emulator>, stats: Arc<Mutex<Statistics>>) {
     const BATCH_SIZE: usize = 100;
 
     loop {
+        let mut local_stats = Statistics::default();
+
         for _ in 0..BATCH_SIZE {
             emu.reset(&*original);
 
-            match emu.run() {
-                Err(reason) => println!("Stop reason: {:?}", reason),
-                _ => println!("Emulation ended successfully"),
+            if emu.run().is_err() {
+                local_stats.crashes += 1;
             }
+
+            local_stats.fuzz_cases += 1;
         }
+
+        // Get access to statistics
+        let mut stats = stats.lock().unwrap();
+
+        stats.fuzz_cases += local_stats.fuzz_cases;
+        stats.crashes += local_stats.crashes;
     }
 }
 
@@ -91,14 +110,30 @@ fn main() {
 
     let emu = Arc::new(emu);
 
+    // Create a new stats structure
+    let stats = Arc::new(Mutex::new(Statistics::default()));
+
     for _ in 0..THREADS {
         let worker_emu = emu.fork();
         let original = emu.clone();
+        let stats = stats.clone();
 
         std::thread::spawn(move || {
-            worker(worker_emu, original);
+            worker(worker_emu, original, stats);
         });
     }
 
-    std::thread::sleep(Duration::from_millis(6 * 1000));
+    loop {
+        std::thread::sleep(Duration::from_millis(1000));
+
+        let stats = stats.lock().unwrap();
+
+        println!(
+            "cases {:10} | crashes {:10} ({:3}%)",
+            stats.fuzz_cases,
+            stats.crashes,
+            stats.crashes as f64 / stats.fuzz_cases as f64
+            (crashes as f64 / fuzz_cases as f64) * 100.0,
+        );
+    }
 }
