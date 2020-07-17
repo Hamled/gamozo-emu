@@ -5,7 +5,7 @@ pub mod primitive;
 use emulator::{Emulator, Register};
 use mmu::{Perm, Section, VirtAddr, PERM_EXEC, PERM_READ, PERM_WRITE};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 const THREADS: usize = 1;
 
@@ -127,10 +127,15 @@ fn main() {
         });
     }
 
+    // Start a timer
+    let start = Instant::now();
+
     let mut last_cases = 0;
     let mut last_instrs = 0;
     loop {
         std::thread::sleep(Duration::from_millis(1000));
+
+        let elapsed = start.elapsed().as_secs_f64();
 
         let stats = stats.lock().unwrap();
 
@@ -139,7 +144,8 @@ fn main() {
         let instrs = stats.instrs_execed;
 
         println!(
-            "cases {:10} ({:8}/s) | crashes {:10} ({:3}%) | Minst/sec {:10}",
+            "[{:8.0}] cases {:10} ({:8}/s) | crashes {:10} ({:3}%) | Minst/sec {:10}",
+            elapsed,
             fuzz_cases,
             fuzz_cases - last_cases,
             crashes,
