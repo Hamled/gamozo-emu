@@ -10,6 +10,11 @@ pub struct Emulator {
     /// Memory for the emulator
     pub memory: Mmu,
     pub registers: [u64; 33],
+
+    // Heap management with program break
+    break_min: VirtAddr,
+    break_current: VirtAddr,
+    break_max: VirtAddr,
 }
 
 impl Emulator {
@@ -18,6 +23,9 @@ impl Emulator {
         Emulator {
             memory: Mmu::new(size),
             registers: [0; 33],
+            break_min: VirtAddr(!0),
+            break_current: VirtAddr(!0),
+            break_max: VirtAddr(!0),
         }
     }
 
@@ -26,6 +34,9 @@ impl Emulator {
         Emulator {
             memory: self.memory.fork(),
             registers: self.registers.clone(),
+            break_min: self.break_min,
+            break_current: self.break_current,
+            break_max: self.break_max,
         }
     }
 
@@ -66,6 +77,39 @@ impl Emulator {
         Some(())
     }
 
+    // Set the current program break
+    // BIG NOTE: This assumes no additional allocations have been made
+    // beyond the program break high watermark, to ensure that the
+    // heap space is contiguous
+    pub fn sbrk(&mut self, break_new: usize) -> Option<VirtAddr> {
+        // If break has not been setup, use current allocation addr
+        if self.break_current.0 == !0 {
+            self.break_current = self.memory.allocate(0)?;
+            self.break_min = self.break_current;
+            self.break_max = self.break_current;
+        }
+
+        if break_new == 0 {
+            return Some(self.break_current);
+        }
+
+        if break_new < self.break_min.0 {
+            // Cannot set break prior to original break
+            return None;
+        }
+
+        if break_new > self.break_max.0 {
+            // Allocate more space for heap
+            self.memory
+                .allocate(break_new.checked_sub(self.break_max.0)?)?;
+            self.break_max = VirtAddr(break_new);
+        }
+
+        // Modify the break as requested
+        self.break_current = VirtAddr(break_new);
+        Some(self.break_current)
+    }
+
     pub fn run(&mut self, instrs_execed: &mut u64) -> Result<(), EmuStop> {
         loop {
             // Get the current program counter
@@ -98,6 +142,17 @@ impl Emulator {
         let num = self.reg(Register::A7);
 
         match num {
+            214 => {
+                // brk()
+                let break_new = self.reg(Register::A0) as usize;
+
+                match self.sbrk(break_new) {
+                    None => self.set_reg(Register::A0, !0),
+                    Some(break_current) => self.set_reg(Register::A0, break_current.0 as u64),
+                }
+
+                Ok(())
+            }
             _ => panic!("Unhandled syscall {}\n", num),
         }
     }

@@ -140,6 +140,9 @@ fn main() {
     push!(argv0.0); // Argv 0
     push!(1u64); // Argc
 
+    // Set the initial program break
+    emu.sbrk(0);
+
     let emu = Arc::new(emu);
 
     // Create a new stats structure

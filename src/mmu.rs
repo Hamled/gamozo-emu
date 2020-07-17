@@ -88,6 +88,11 @@ impl Mmu {
 
     /// Allocate a region of memory as RW in the address space
     pub fn allocate(&mut self, size: usize) -> Option<VirtAddr> {
+        // If size is zero, just return current alloc base
+        if size == 0 {
+            return Some(self.cur_alc);
+        }
+
         // 16-byte align the allocation
         let align_size = (size + 0xf) & !0xf;
 
