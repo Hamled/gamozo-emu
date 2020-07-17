@@ -5,6 +5,9 @@ pub mod primitive;
 use emulator::{Emulator, Register};
 use mmu::{Perm, Section, VirtAddr, PERM_EXEC, PERM_READ, PERM_WRITE};
 use std::sync::Arc;
+use std::time::Duration;
+
+const THREADS: usize = 8;
 
 fn worker(mut emu: Emulator, original: Arc<Emulator>) {
     const BATCH_SIZE: usize = 100;
@@ -86,9 +89,16 @@ fn main() {
     push!(argv0.0); // Argv 0
     push!(1u64); // Argc
 
-    {
+    let emu = Arc::new(emu);
+
+    for _ in 0..THREADS {
         let worker_emu = emu.fork();
-        let original = Arc::new(emu);
-        worker(worker_emu, original);
+        let original = emu.clone();
+
+        std::thread::spawn(move || {
+            worker(worker_emu, original);
+        });
     }
+
+    std::thread::sleep(Duration::from_millis(6 * 1000));
 }
