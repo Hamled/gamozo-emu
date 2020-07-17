@@ -2,8 +2,9 @@ use crate::mmu::{Mmu, Perm, Section, VirtAddr, PERM_EXEC};
 use crate::DEBUG;
 use std::path::Path;
 
-const VERBOSE_GUEST_PRINTS: bool = DEBUG > 0;
-const DEBUG_EXEC: bool = DEBUG > 1;
+const DEBUG_PRINTS: bool = DEBUG > 0;
+const DEBUG_SYSCALL: bool = DEBUG > 1;
+const DEBUG_EXEC: bool = DEBUG > 5;
 
 /// All the state of the emulated system
 pub struct Emulator {
@@ -145,6 +146,10 @@ impl Emulator {
             214 => {
                 // brk()
                 let break_new = self.reg(Register::A0) as usize;
+
+                if DEBUG_SYSCALL {
+                    println!("brk({:#x})", break_new);
+                }
 
                 match self.sbrk(break_new) {
                     None => self.set_reg(Register::A0, !0),
