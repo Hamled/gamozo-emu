@@ -85,34 +85,27 @@ fn worker(mut emu: Emulator, original: Arc<Emulator>, stats: Arc<Mutex<Statistic
 fn main() {
     let mut emu = Emulator::new(1024 * 1024);
     emu.load(
-        "./test_app",
+        "./objdump",
         &[
             Section {
                 file_off: 0x0000000000000000,
                 virt_addr: VirtAddr(0x0000000000010000),
-                file_size: 0x0000000000000190,
-                mem_size: 0x0000000000000190,
-                permissions: Perm(PERM_READ),
+                file_size: 0x00000000000e2e44,
+                mem_size: 0x00000000000e2e44,
+                permissions: Perm(PERM_READ | PERM_EXEC),
             },
             Section {
-                file_off: 0x0000000000000190,
-                virt_addr: VirtAddr(0x0000000000011190),
-                file_size: 0x0000000000002598,
-                mem_size: 0x0000000000002598,
-                permissions: Perm(PERM_EXEC),
-            },
-            Section {
-                file_off: 0x0000000000002728,
-                virt_addr: VirtAddr(0x0000000000014728),
-                file_size: 0x00000000000000f8,
-                mem_size: 0x0000000000000750,
+                file_off: 0x00000000000e3000,
+                virt_addr: VirtAddr(0x00000000000f3000),
+                file_size: 0x0000000000001e4a,
+                mem_size: 0x00000000000046e0,
                 permissions: Perm(PERM_READ | PERM_WRITE),
             },
         ],
     )
     .expect("Failed to load test application into addres space");
 
-    emu.set_reg(Register::Pc, 0x11190);
+    emu.set_reg(Register::Pc, 0x104cc);
 
     // Setup a stack
     let stack = emu
@@ -122,7 +115,7 @@ fn main() {
     emu.set_reg(Register::Sp, stack.0 as u64 + 32 * 1024);
 
     // Setup arguments
-    let progname = b"test_app\0";
+    let progname = b"objdump\0";
     let argv0 = emu
         .memory
         .allocate(progname.len())
