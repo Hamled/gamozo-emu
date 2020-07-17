@@ -57,7 +57,11 @@ fn worker(mut emu: Emulator, original: Arc<Emulator>, stats: Arc<Mutex<Statistic
             if let Err(reason) = res {
                 local_stats.crashes += 1;
                 if DEBUG > 0 {
-                    println!("Emu stopped with: {:#x?}", reason);
+                    println!(
+                        "Emu stopped at {:#x} with: {:#x?}",
+                        emu.reg(Register::Pc),
+                        reason
+                    );
                 }
             }
 
