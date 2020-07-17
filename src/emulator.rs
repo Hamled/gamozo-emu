@@ -200,6 +200,17 @@ impl Emulator {
 
                 Ok(())
             }
+            93 => {
+                // exit()
+                let exit_status = self.reg(Register::A0) as i64;
+
+                if DEBUG_SYSCALL {
+                    println!("exit({})", exit_status);
+                }
+
+                // We're done emulating
+                Err(EmuStop::Exit)
+            }
             214 => {
                 // brk()
                 let break_new = self.reg(Register::A0) as usize;
