@@ -1,6 +1,8 @@
 use crate::emulator::EmuStop;
 use crate::primitive::Primitive;
 
+const TRACK_UNINIT: bool = false;
+
 pub const PERM_READ: u8 = 1 << 0;
 pub const PERM_WRITE: u8 = 2 << 0;
 pub const PERM_EXEC: u8 = 3 << 0;
@@ -86,8 +88,8 @@ impl Mmu {
         self.dirty.clear();
     }
 
-    /// Allocate a region of memory as RW in the address space
-    pub fn allocate(&mut self, size: usize) -> Option<VirtAddr> {
+    /// Allocate a region of memory as RW in the address space with given permissions
+    pub fn allocate_perms(&mut self, size: usize, perm: Perm) -> Option<VirtAddr> {
         // If size is zero, just return current alloc base
         if size == 0 {
             return Some(self.cur_alc);
@@ -113,9 +115,21 @@ impl Mmu {
         }
 
         // Mark the memory as un-initialized and writeable
-        self.set_permissions(base, size, Perm(PERM_RAW | PERM_WRITE));
+        self.set_permissions(base, size, perm);
 
         Some(base)
+    }
+
+    /// Allocate a region of memory as RW in the address space
+    pub fn allocate(&mut self, size: usize) -> Option<VirtAddr> {
+        self.allocate_perms(
+            size,
+            if TRACK_UNINIT {
+                Perm(PERM_RAW | PERM_WRITE)
+            } else {
+                Perm(PERM_READ | PERM_WRITE)
+            },
+        )
     }
 
     /// Apply permissions to a region of memory
