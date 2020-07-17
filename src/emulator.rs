@@ -143,6 +143,23 @@ impl Emulator {
         let num = self.reg(Register::A7);
 
         match num {
+            57 => {
+                // close()
+                let fd = self.reg(Register::A0) as i64;
+
+                if DEBUG_SYSCALL {
+                    println!("close({})", fd);
+                }
+
+                if fd > 2 {
+                    // TODO: Add real file support
+                    panic!("Unhandled close() to fd {}", fd);
+                }
+
+                self.set_reg(Register::A0, 0);
+
+                Ok(())
+            }
             64 => {
                 // write()
                 let fd = self.reg(Register::A0) as i64;
