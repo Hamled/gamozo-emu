@@ -159,7 +159,6 @@ impl Emulator {
     fn exec_inst(&mut self, pc: u64, inst: u32) -> Result<u64, EmuStop> {
         // Extract the opcode from the instruction
         let opcode = inst & 0b1111111;
-        println!("Executing {:#x} {:b}", pc, opcode);
 
         match opcode {
             0b0110111 => {

@@ -4,6 +4,22 @@ pub mod primitive;
 
 use emulator::{Emulator, Register};
 use mmu::{Perm, Section, VirtAddr, PERM_EXEC, PERM_READ, PERM_WRITE};
+use std::sync::Arc;
+
+fn worker(mut emu: Emulator, original: Arc<Emulator>) {
+    const BATCH_SIZE: usize = 100;
+
+    loop {
+        for _ in 0..BATCH_SIZE {
+            emu.reset(&*original);
+
+            match emu.run() {
+                Err(reason) => println!("Stop reason: {:?}", reason),
+                _ => println!("Emulation ended successfully"),
+            }
+        }
+    }
+}
 
 fn main() {
     let mut emu = Emulator::new(1024 * 1024);
@@ -70,7 +86,9 @@ fn main() {
     push!(argv0.0); // Argv 0
     push!(1u64); // Argc
 
-    if emu.run().is_err() {
-        panic!("Failed to execute emulator");
+    {
+        let worker_emu = emu.fork();
+        let original = Arc::new(emu);
+        worker(worker_emu, original);
     }
 }
