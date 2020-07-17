@@ -143,6 +143,41 @@ impl Emulator {
         let num = self.reg(Register::A7);
 
         match num {
+            64 => {
+                // write()
+                let fd = self.reg(Register::A0) as i64;
+                let buf = self.reg(Register::A1) as u64;
+                let len = self.reg(Register::A2) as u64;
+
+                if DEBUG_SYSCALL {
+                    println!("write({}, {:#x}, {:#x})", fd, buf, len);
+                }
+
+                if fd != 1 && fd != 2 {
+                    // TODO: Add real file support
+                    panic!("Unhandled write() to fd {}", fd);
+                } else {
+                    // Say that we read everything
+                    self.set_reg(Register::A0, len);
+
+                    if DEBUG_PRINTS {
+                        print!(
+                            "{}",
+                            core::str::from_utf8(
+                                self.memory.peek(VirtAddr(buf as usize), len as usize)?
+                            )
+                            .unwrap_or(&format!(
+                                "write(): Non-UTF8 string at {:#x} len {:#x}, pc = {:#x}",
+                                buf,
+                                len,
+                                self.reg(Register::Pc)
+                            ))
+                        );
+                    }
+                }
+
+                Ok(())
+            }
             214 => {
                 // brk()
                 let break_new = self.reg(Register::A0) as usize;
