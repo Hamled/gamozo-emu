@@ -87,9 +87,12 @@ fn worker(mut emu: Emulator, original: Arc<Emulator>, stats: Arc<Mutex<Statistic
 }
 
 fn main() {
+    let program = "./objdump";
+    let args: Vec<&str> = vec![program, "-x", "test_app"];
+
     let mut emu = Emulator::new(1024 * 1024);
     emu.load(
-        "./objdump",
+        program,
         &[
             Section {
                 file_off: 0x0000000000000000,
@@ -107,7 +110,7 @@ fn main() {
             },
         ],
     )
-    .expect("Failed to load test application into addres space");
+    .expect("Failed to load fuzz target into address space");
 
     emu.set_reg(Register::Pc, 0x104cc);
 
@@ -126,14 +129,21 @@ fn main() {
     emu.set_reg(Register::Sp, stack.0 as u64 + 32 * 1024);
 
     // Setup arguments
-    let progname = b"objdump\0";
-    let argv0 = emu
-        .memory
-        .allocate(progname.len())
-        .expect("Failed to allocate program name");
-    emu.memory
-        .write_from(argv0, progname)
-        .expect("Failed to write program name");
+    let mut argv: Vec<VirtAddr> = Vec::new();
+    for arg in args {
+        let arg_addr = emu
+            .memory
+            .allocate(arg.len() + 1)
+            .expect("Failed to allocate space for argument");
+        emu.memory
+            .write_from(arg_addr, String::from(arg).as_bytes())
+            .expect("Failed to write argument");
+        emu.memory
+            .write_from(VirtAddr(arg_addr.0 + arg.len()), &[0u8])
+            .expect("Failed to write argument null terminator");
+
+        argv.push(arg_addr);
+    }
 
     macro_rules! push {
         ($expr:expr) => {
@@ -147,9 +157,13 @@ fn main() {
 
     push!(0u64); // Auxp
     push!(0u64); // Envp
+
+    // Argv, Argc
     push!(0u64); // Argv null
-    push!(argv0.0); // Argv 0
-    push!(1u64); // Argc
+    for arg_ptr in &argv {
+        push!(arg_ptr.0);
+    }
+    push!(argv.len() as u64);
 
     // Set the initial program break
     emu.sbrk(0);
