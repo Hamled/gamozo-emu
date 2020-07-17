@@ -49,6 +49,11 @@ impl Emulator {
 
         // Reset register state
         self.registers = other.registers;
+
+        // Reset program break
+        self.break_min = other.break_min;
+        self.break_current = other.break_current;
+        self.break_max = other.break_max;
     }
 
     pub fn reg(&self, register: Register) -> u64 {
