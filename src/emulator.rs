@@ -198,6 +198,23 @@ impl Emulator {
                 // TODO: Add real file support
                 self.set_reg(Register::A0, !0);
             }
+            63 => {
+                // read()
+                let fd = self.reg(Register::A0) as i64;
+                let ptr = self.reg(Register::A1) as u64;
+                let len = self.reg(Register::A2) as u64;
+
+                if DEBUG_SYSCALL {
+                    print!("read({}, {:#x}, {:#x})", fd, ptr, len);
+                }
+
+                if fd != 0 {
+                    // TODO: Add real file support
+                    self.set_reg(Register::A0, !0);
+                } else {
+                    unimplemented!("Unhandled read() from stdin");
+                }
+            }
             64 => {
                 // write()
                 let fd = self.reg(Register::A0) as i64;
