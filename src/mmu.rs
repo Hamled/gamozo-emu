@@ -103,7 +103,7 @@ impl Mmu {
         // Get the current allocation base
         let base = self.cur_alc;
 
-        // Cannote allocate
+        // Cannot allocate
         if base.0 >= self.memory.len() {
             return None;
         }
@@ -117,7 +117,7 @@ impl Mmu {
         }
 
         // Mark the memory as un-initialized and writeable
-        self.set_permissions(base, size, perm);
+        self.set_permissions(base, align_size, perm);
 
         Some(base)
     }
