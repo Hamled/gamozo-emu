@@ -1,6 +1,8 @@
 use crate::mmu::{Mmu, Perm, Section, VirtAddr, PERM_EXEC};
 use std::path::Path;
 
+const VERBOSE_GUEST_PRINTS: bool = false;
+
 /// All the state of the emulated system
 pub struct Emulator {
     /// Memory for the emulator
@@ -132,8 +134,10 @@ impl Emulator {
                     // Look at the buffer
                     let data = self.memory.peek(VirtAddr(buf), len)?;
 
-                    if let Ok(output) = core::str::from_utf8(data) {
-                        print!("{}", output);
+                    if VERBOSE_GUEST_PRINTS {
+                        if let Ok(output) = core::str::from_utf8(data) {
+                            print!("{}", output);
+                        }
                     }
 
                     bytes_written += data.len() as u64;
