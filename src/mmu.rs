@@ -201,7 +201,11 @@ impl Mmu {
         if exp_perms.0 != 0 {
             for (addr, perm) in perms.iter().enumerate() {
                 if (perm.0 & exp_perms.0) != exp_perms.0 {
-                    return Err(EmuStop::ReadFault(VirtAddr(addr)));
+                    return Err(if perm.0 & PERM_RAW != 0 {
+                        EmuStop::UninitFault(VirtAddr(addr))
+                    } else {
+                        EmuStop::ReadFault(VirtAddr(addr))
+                    });
                 }
             }
         }

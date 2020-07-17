@@ -754,4 +754,7 @@ pub enum EmuStop {
 
     /// A write of `VirtAddr` failed due to invalid permissions
     WriteFault(VirtAddr),
+
+    /// A read of `VirtAddr` failed due to uninitialized memory
+    UninitFault(VirtAddr),
 }
